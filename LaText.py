@@ -1,218 +1,196 @@
+
+
+# Hello! This is new version of LaText Editor. It is a simple text editor with a user-friendly interface and support for multiple languages. You can save and load your texts, change the appearance of the editor, and customize settings according to your preferences.
+#Thanks for using LaText Editor! If you have any questions or suggestions, feel free to contact the developer.
+
 import os
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 import customtkinter as ctk
 
-# --- ИНИЦИАЛИЗАЦИЯ И ЗАГРУЗКА НАСТРОЕК ---
-current_lang = "Русский"
-current_theme = "Light"
+# --- ПУТИ ---
+APP_DATA_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "LLTextEditor")
+SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.txt")
+DOCUMENTS_DIR = os.path.join(os.path.expanduser("~"), "Documents", "LLTextEditor", "saved_texts")
 
-if os.path.exists("settings.txt"):
+os.makedirs(APP_DATA_DIR, exist_ok=True)
+os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+
+# --- ЗАГРУЗКА НАСТРОЕК ---
+current_lang, current_theme = "English", "Dark"
+if os.path.exists(SETTINGS_FILE):
     try:
-        with open("settings.txt", "r", encoding="utf-8") as settings_file:
-            lines = settings_file.read().splitlines()
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            lines = f.read().splitlines()
             if len(lines) >= 2:
-                current_lang = lines[0]
-                current_theme = lines[1]
+                if lines[0] in ["English", "Русский", "Украинский"]: current_lang = lines[0]
+                if lines[1] in ["Light", "Dark"]: current_theme = lines[1]
     except Exception:
         pass
 
 ctk.set_appearance_mode(current_theme)
 
 app = ctk.CTk()
-app.geometry("490x320")  # Сделали окно чуть шире и компактнее по высоте
-app.title("LaText Editor")
+app.geometry("490x360")  # Немного увеличили высоту, чтобы текст не влезал на метки
+app.title("LLText Editor")
 app.resizable(False, False)
-
-app.configure(bg_color="lightblue")
-app.attributes("-topmost", True)
-app.attributes("-toolwindow", True)
-
-# Переменная для отслеживания видимости панели кнопок
+app.attributes("-topmost", True, "-toolwindow", True)
 buttons_visible = True
 
-# --- СЛОВАРЬ ДЛЯ ЛОКАЛИЗАЦИИ ---
+# --- СЛОВАРЬ ---
 TRANSLATIONS = {
-    "English": {
-        "title": "LaText Editor",
-        "settings_title": "Editor Settings",
-        "save": "Save",
-        "load": "Load",
-        "settings": "Settings",
-        "close": "Close",
-        "apply": "Apply",
-        "clear": "Clear",
-        "hide_buttons": "Hide Buttons",
-        "show_buttons": "Show Buttons"
-    },
-    "Русский": {
-        "title": "LaText Editor",
-        "settings_title": "Настройки редактора",
-        "save": "Сохранить",
-        "load": "Открыть",
-        "settings": "Настройки",
-        "close": "Закрыть",
-        "apply": "Применить",
-        "clear": "Очистить",
-        "hide_buttons": "Скрыть кнопки",
-        "show_buttons": "Показать кнопки"
-    }
+    "English": {"title": "LLText Editor", "st_title": "Editor Settings", "save": "Save", "load": "Load", "set": "Settings", "close": "Close", "apply": "Apply", "clear": "Clear", "hide": "Hide Buttons", "show": "Show Buttons"},
+    "Русский": {"title": "LLText Editor", "st_title": "Настройки редактора", "save": "Сохранить", "load": "Открыть", "set": "Настройки", "close": "Закрыть", "apply": "Применить", "clear": "Очистить", "hide": "Скрыть кнопки", "show": "Показать кнопки"},
+    "Украинский": {"title": "LLText Editor", "st_title": "Налаштування редактора", "save": "Зберегти", "load": "Відкрити", "set": "Налаштування","close": "Закрити", "apply": "Застосувати", "clear": "Очистити", "hide": "Приховати кнопки", "show": "Показать кнопки"}
 }
 
 # --- ФУНКЦИИ ---
-
-def update_interface_language(lang):
+def update_lang(lang):
     t = TRANSLATIONS.get(lang, TRANSLATIONS["English"])
     app.title(t["title"])
-    SettingsWindow.title(t["settings"])
-    label_settings.configure(text=t["settings_title"])
-    Buttonsave.configure(text=t["save"])
-    Buttonload.configure(text=t["load"])
-    ButtonSettings.configure(text=t["settings"])
-    SettingsCloseButton.configure(text=t["close"])
-    SettingsSaveButton.configure(text=t["save"])
-    Settingsapplication.configure(text=t["apply"])
-    ButtonCleartext.configure(text=t["clear"])
-    
-    # Обновляем текст кнопки в зависимости от текущего состояния видимости панели
-    if buttons_visible:
-        Settinghidebutton.configure(text=t["hide_buttons"])
-    else:
-        Settinghidebutton.configure(text=t["show_buttons"])
+    SettingsWindow.title(t["set"])
+    lbl_settings.configure(text=t["st_title"])
+    btn_save.configure(text=t["save"])
+    btn_load.configure(text=t["load"])
+    btn_set.configure(text=t["set"])
+    btn_close.configure(text=t["close"])
+    btn_st_save.configure(text=t["save"])
+    btn_apply.configure(text=t["apply"])
+    btn_clear.configure(text=t["clear"])
+    btn_hide.configure(text=t["hide"] if buttons_visible else t["show"])
 
-def save_file():
-    os.makedirs("saved_texts", exist_ok=True)
-    file_path = filedialog.asksaveasfilename(
-        initialdir="saved_texts",
-        initialfile="text.txt",
-        defaultextension=".txt",
-        filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")],
-        title="Сохранить файл как"
-    )
-    if file_path:
-        text_content = texteditor.get("1.0", "end-1c")
-        with open(file_path, "w", encoding="utf-8") as file:
-            file.write(text_content)
+def save_file(event=None):
+    path = filedialog.asksaveasfilename(initialdir=DOCUMENTS_DIR, initialfile="text.txt", defaultextension=".txt", filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+    if path:
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(texteditor.get("1.0", "end-1c"))
+        except Exception as e:
+            messagebox.showerror("Error", f"Не удалось сохранить файл:\n\n{e}")
+    return "break" # Предотвращает стандартное поведение Tkinter
 
-def load_file():
-    file_path = filedialog.askopenfilename(
-        initialdir="saved_texts",
-        defaultextension=".txt",
-        filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")],
-        title="Открыть файл"
-    )
-    if file_path:
-        with open(file_path, "r", encoding="utf-8") as file:
-            text_content = file.read()
-            texteditor.delete("1.0", "end")
-            texteditor.insert("1.0", text_content)
+def load_file(event=None):
+    path = filedialog.askopenfilename(initialdir=DOCUMENTS_DIR, filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+    if path:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                texteditor.delete("1.0", "end")
+                texteditor.insert("1.0", f.read())
+        except Exception as e:
+            messagebox.showerror("Error", f"Не удалось открыть файл:\n\n{e}")
+    return "break"
 
-def save_settings():
-    save_language = SettingsLanguage.get()
-    save_theme = SettingsTheme.get()
-    with open("settings.txt", "w", encoding="utf-8") as settings_file:
-        settings_file.write(f"{save_language}\n{save_theme}")
+def save_settings(event=None):
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            f.write(f"{cb_lang.get()}\n{cb_theme.get()}")
+        return "break"
+    except Exception as e:
+        messagebox.showerror("Error", f"Не удалось сохранить настройки:\n\n{e}")
+        return "break"
 
-def open_settings():
-    SettingsWindow.deiconify()
-
-def hide_settings():
-    SettingsWindow.withdraw()
+def load_settings_hotkey(event=None):
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+                if len(lines) >= 2:
+                    cb_lang.set(lines[0])
+                    cb_theme.set(lines[1])
+                    apply_settings()
+        except Exception as e:
+            messagebox.showerror("Error", f"Не удалось загрузить настройки:\n\n{e}")
+    return "break"
 
 def apply_settings():
-    selected_lang = SettingsLanguage.get()
-    selected_theme = SettingsTheme.get()
-    ctk.set_appearance_mode(selected_theme)
-    update_interface_language(selected_lang)
+    global current_lang, current_theme
+    current_lang, current_theme = cb_lang.get(), cb_theme.get()
+    ctk.set_appearance_mode(current_theme)
+    update_lang(current_lang)
     save_settings()
-    hide_settings()
+    SettingsWindow.withdraw()
 
 def toggle_buttons():
-    """Переключает видимость панели с кнопками (toolbar_frame)"""
     global buttons_visible
-    t = TRANSLATIONS.get(SettingsLanguage.get(), TRANSLATIONS["English"])
-    
+    t = TRANSLATIONS.get(current_lang, TRANSLATIONS["English"])
     if buttons_visible:
-        # Прячем фрейм со всеми кнопками внутри
         toolbar_frame.pack_forget()
         buttons_visible = False
-        Settinghidebutton.configure(text=t["show_buttons"])
+        btn_hide.configure(text=t["show"])
     else:
-        # Чтобы сохранить правильный порядок элементов (версия снизу),
-        # временно убираем версию, пакуем кнопки и возвращаем версию назад.
-        labelversion.pack_forget()
+        lbl_version.pack_forget()
+        ButtonHotKey.pack_forget()
         toolbar_frame.pack(side="top", fill="x", padx=20, pady=5)
-        labelversion.pack(side="bottom", pady=5)
+        lbl_version.pack(side="bottom", pady=5)
+        ButtonHotKey.pack(side="bottom", pady=5)
         buttons_visible = True
-        Settinghidebutton.configure(text=t["hide_buttons"])
+        btn_hide.configure(text=t["hide"])
 
-# --- СОЗДАНИЕ ОКНА НАСТРОЕК ---
+# --- ОКНО НАСТРОЕК ---
 SettingsWindow = ctk.CTkToplevel(app)
-SettingsWindow.title("Settings")
 SettingsWindow.geometry("300x320")
 SettingsWindow.resizable(False, False)
 SettingsWindow.withdraw()
-SettingsWindow.attributes("-topmost", True)
-SettingsWindow.attributes("-toolwindow", True)
-SettingsWindow.protocol("WM_DELETE_WINDOW", hide_settings)
+SettingsWindow.attributes("-topmost", True, "-toolwindow", True)
+SettingsWindow.protocol("WM_DELETE_WINDOW", SettingsWindow.withdraw)
 
-label_settings = ctk.CTkLabel(SettingsWindow, text="Настройки редактора", font=("Arial", 14, "bold"))
-label_settings.pack(pady=15)
+lbl_settings = ctk.CTkLabel(SettingsWindow, text="", font=("Arial", 14, "bold"))
+lbl_settings.pack(pady=15)
 
-SettingsLanguage = ctk.CTkComboBox(SettingsWindow, values=["English", "Русский"], width=150)
-SettingsLanguage.pack(pady=5)
-SettingsLanguage.set(current_lang)
+cb_lang = ctk.CTkComboBox(SettingsWindow, values=["English", "Русский", "Украинский"], width=150)
+cb_lang.pack(pady=5)
+cb_lang.set(current_lang)
 
-SettingsTheme = ctk.CTkComboBox(SettingsWindow, values=["Light", "Dark"], width=150)
-SettingsTheme.pack(pady=5)
-SettingsTheme.set(current_theme)
+cb_theme = ctk.CTkComboBox(SettingsWindow, values=["Light", "Dark"], width=150)
+cb_theme.pack(pady=5)
+cb_theme.set(current_theme)
 
-SettingsCloseButton = ctk.CTkButton(SettingsWindow, text="Close", command=hide_settings)
-SettingsCloseButton.pack(pady=10)
+btn_close = ctk.CTkButton(SettingsWindow, command=SettingsWindow.withdraw)
+btn_close.pack(pady=10)
 
-SettingsSaveButton = ctk.CTkButton(SettingsWindow, text="Save", command=save_settings)
-SettingsSaveButton.pack(pady=5)
+btn_st_save = ctk.CTkButton(SettingsWindow, command=save_settings)
+btn_st_save.pack(pady=5)
 
-Settingsapplication = ctk.CTkButton(SettingsWindow, text="Apply", command=apply_settings)
-Settingsapplication.pack(pady=5)
+btn_apply = ctk.CTkButton(SettingsWindow, command=apply_settings)
+btn_apply.pack(pady=5)
 
-# ИСПРАВЛЕНО: Кнопка перевязана на функцию toggle_buttons
-Settinghidebutton = ctk.CTkButton(SettingsWindow, text="Hide buttons", command=toggle_buttons)
-Settinghidebutton.pack(pady=5)
+btn_hide = ctk.CTkButton(SettingsWindow, command=toggle_buttons)
+btn_hide.pack(pady=5)
 
-
-# --- ИНТЕРФЕЙС ГЛАВНОГО ОКНА ---
-
-# Текстовое поле
+# --- ГЛАВНОЕ ОКНО ---
 texteditor = ctk.CTkTextbox(app, width=450, height=180)
 texteditor.pack(pady=15)
 texteditor.bind("<Button-1>", lambda e: texteditor.focus_set())
 
-# 1. Горизонтальный контейнер для КНОПОК
+# Привязываем горячие клавиши ко всему приложению (регистронезависимо)
+app.bind("<Control-Key-s>", save_file)
+app.bind("<Control-Key-S>", save_file)
+app.bind("<Control-Key-o>", load_file)
+app.bind("<Control-Key-O>", load_file)
+app.bind("<Control-Shift-Key-s>", save_settings)
+app.bind("<Control-Shift-Key-S>", save_settings)
+app.bind("<Control-Shift-Key-l>", load_settings_hotkey)
+app.bind("<Control-Shift-Key-L>", load_settings_hotkey)
+
 toolbar_frame = ctk.CTkFrame(app, fg_color="transparent")
 toolbar_frame.pack(side="top", fill="x", padx=20, pady=5)
 
-# Кнопки выстраиваются слева направо внутри toolbar_frame
-Buttonload = ctk.CTkButton(toolbar_frame, text="Load", command=load_file, width=90)
-Buttonload.pack(side="left", padx=5)
+btn_load = ctk.CTkButton(toolbar_frame, command=load_file, width=90)
+btn_load.pack(side="left", padx=5)
 
-Buttonsave = ctk.CTkButton(toolbar_frame, text="Save", command=save_file, width=90)
-Buttonsave.pack(side="left", padx=5)
+btn_save = ctk.CTkButton(toolbar_frame, command=save_file, width=90)
+btn_save.pack(side="left", padx=5)
 
-ButtonSettings = ctk.CTkButton(toolbar_frame, text="Settings", command=open_settings, width=90)
-ButtonSettings.pack(side="left", padx=5)
+btn_set = ctk.CTkButton(toolbar_frame, command=lambda: [SettingsWindow.deiconify(), SettingsWindow.lift()], width=90)
+btn_set.pack(side="left", padx=5)
 
-# Кнопка Clear (Красная, теперь находится ЧЕТКО СПРАВА)
-ButtonCleartext = ctk.CTkButton(toolbar_frame, text="Clear", command=lambda: texteditor.delete("1.0", "end"), width=90, height=30)
-ButtonCleartext.configure(fg_color="red", hover_color="darkred", text_color="white", font=("Arial", 12, "bold"))
-ButtonCleartext.bind("<Enter>", lambda e: ButtonCleartext.configure(fg_color="darkred"))
-ButtonCleartext.bind("<Leave>", lambda e: ButtonCleartext.configure(fg_color="red"))
-ButtonCleartext.pack(side="right", padx=5)
+btn_clear = ctk.CTkButton(toolbar_frame, command=lambda: texteditor.delete("1.0", "end"), width=90, height=30, fg_color="red", hover_color="darkred", text_color="white", font=("Arial", 12, "bold"))
+btn_clear.pack(side="right", padx=5)
 
-# Версия программы в самом низу
-labelversion = ctk.CTkLabel(app, text="LaText Editor v0.5.3", font=("Arial", 10))
-labelversion.pack(side="bottom", pady=5)
+lbl_version = ctk.CTkLabel(app, text="LLText Editor v0.6.3", font=("Arial", 10))
+lbl_version.pack(side="bottom", pady=2)
 
-# Первичная настройка языка при запуске
-update_interface_language(current_lang)
+ButtonHotKey = ctk.CTkLabel(app, text="Hotkeys: Ctrl+S - Save | Ctrl+O - Load | Ctrl+Shift+S - Save Settings | Ctrl+Shift+L - Load Settings", font=("Arial", 9), justify="center")
+ButtonHotKey.pack(side="bottom", pady=2)
 
+update_lang(current_lang)
 app.mainloop()
